@@ -167,7 +167,6 @@ def unificar_horarios_seguidos(horarios_lista):
 st.set_page_config(page_title="Gerador de Listas de Presença", layout="centered")
 
 st.title("Gerador de Listas de Presença")
-st.write("Gere planilhas de faturamento consolidadas automaticamente.")
 
 # Verifica se o modelo padrão já está na mesma pasta que o script
 tem_modelo_local = os.path.exists(MODELO_PADRAO_NOME)
@@ -177,7 +176,7 @@ col1, col2 = st.columns(2)
 mes = col1.number_input("Mês da Lista", min_value=1, max_value=12, value=datetime.now().month)
 ano = col2.number_input("Ano da Lista", min_value=2020, max_value=2100, value=datetime.now().year)
 
-senha_digitada = st.text_input("Senha do Paciente (opcional):", placeholder="Digite a senha para preencher o documento")
+senha_digitada = st.text_input("Senha da Guia (opcional):", placeholder="Digite a senha para preencher o documento")
 
 st.divider()
 
