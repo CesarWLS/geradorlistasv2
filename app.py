@@ -185,12 +185,13 @@ st.subheader("Anexe os arquivos necessários")
 arquivo_grade = st.file_uploader("1. Grade de Faturamento (Word - .docx)", type=["docx"])
 
 arquivo_modelo = None
-# Se o modelo existir na pasta, avisa que está tudo ok. Se não, pede o upload como plano B.
+# Mostra sempre o botão de upload, mas muda a mensagem dependendo se o arquivo já existe na pasta
 if tem_modelo_local:
-    st.success(f"✅ Modelo padrão da clínica carregado automaticamente.")
+    st.success(f"✅ O modelo padrão da clínica já está carregado.")
+    arquivo_modelo = st.file_uploader("2. Modelo Alternativo (Opcional - anexe apenas se quiser usar um modelo diferente)", type=["xlsx"])
 else:
-    st.warning(f"⚠️ O arquivo '{MODELO_PADRAO_NOME}' não foi encontrado na pasta. Por favor, anexe o modelo manualmente.")
-    arquivo_modelo = st.file_uploader("2. Modelo da Planilha Padrão (Excel - .xlsx)", type=["xlsx"])
+    st.warning(f"⚠️ O arquivo '{MODELO_PADRAO_NOME}' não foi encontrado. Por favor, anexe o modelo manualmente.")
+    arquivo_modelo = st.file_uploader("2. Modelo da Planilha Padrão (Excel - .xlsx) [OBRIGATÓRIO]", type=["xlsx"])
 
 if st.button("Gerar Lista de Presença", type="primary"):
     if not arquivo_grade:
@@ -202,11 +203,11 @@ if st.button("Gerar Lista de Presença", type="primary"):
             try:
                 feriados_br = holidays.Brazil(years=ano)
                 
-                # Escolhe de onde carregar o Excel (do arquivo da pasta ou do upload manual)
-                if tem_modelo_local:
-                    wb_modelo = openpyxl.load_workbook(MODELO_PADRAO_NOME, data_only=False)
-                else:
+                # A mágica acontece aqui: prioriza o arquivo anexado. Se não houver, usa o local.
+                if arquivo_modelo is not None:
                     wb_modelo = openpyxl.load_workbook(arquivo_modelo, data_only=False)
+                else:
+                    wb_modelo = openpyxl.load_workbook(MODELO_PADRAO_NOME, data_only=False)
                 
                 aba_modelo_original = wb_modelo.worksheets[0]
 
