@@ -4,11 +4,15 @@ import docx
 from datetime import date, timedelta, datetime
 import re
 import io
+import os
 import openpyxl
 from openpyxl.cell.cell import MergedCell
 from copy import copy
 import holidays
 from PIL import Image as PILImage
+
+# Nome exato do seu arquivo de modelo que deve estar na mesma pasta
+MODELO_PADRAO_NOME = "MODELOLISTA.xlsx"
 
 # ==========================================
 # FUNÇÕES DE LÓGICA E FORMATAÇÃO
@@ -165,6 +169,9 @@ st.set_page_config(page_title="Gerador de Listas de Presença", layout="centered
 st.title("Gerador de Listas de Presença")
 st.write("Gere planilhas de faturamento consolidadas automaticamente.")
 
+# Verifica se o modelo padrão já está na mesma pasta que o script
+tem_modelo_local = os.path.exists(MODELO_PADRAO_NOME)
+
 # Controles de Mês, Ano e Senha
 col1, col2 = st.columns(2)
 mes = col1.number_input("Mês da Lista", min_value=1, max_value=12, value=datetime.now().month)
@@ -176,16 +183,31 @@ st.divider()
 
 st.subheader("Anexe os arquivos necessários")
 arquivo_grade = st.file_uploader("1. Grade de Faturamento (Word - .docx)", type=["docx"])
-arquivo_modelo = st.file_uploader("2. Modelo da Planilha Padrão (Excel - .xlsx)", type=["xlsx"])
+
+arquivo_modelo = None
+# Se o modelo existir na pasta, avisa que está tudo ok. Se não, pede o upload como plano B.
+if tem_modelo_local:
+    st.success(f"✅ Modelo padrão da clínica carregado automaticamente.")
+else:
+    st.warning(f"⚠️ O arquivo '{MODELO_PADRAO_NOME}' não foi encontrado na pasta. Por favor, anexe o modelo manualmente.")
+    arquivo_modelo = st.file_uploader("2. Modelo da Planilha Padrão (Excel - .xlsx)", type=["xlsx"])
 
 if st.button("Gerar Lista de Presença", type="primary"):
-    if not arquivo_grade or not arquivo_modelo:
-        st.error("Por favor, faça o upload da Grade (Word) e do Modelo (Excel) antes de continuar.")
+    if not arquivo_grade:
+        st.error("Por favor, faça o upload da Grade (Word) antes de continuar.")
+    elif not tem_modelo_local and not arquivo_modelo:
+        st.error("Por favor, faça o upload do Modelo (Excel) antes de continuar.")
     else:
         with st.spinner('Lendo dados e gerando abas...'):
             try:
                 feriados_br = holidays.Brazil(years=ano)
-                wb_modelo = openpyxl.load_workbook(arquivo_modelo, data_only=False)
+                
+                # Escolhe de onde carregar o Excel (do arquivo da pasta ou do upload manual)
+                if tem_modelo_local:
+                    wb_modelo = openpyxl.load_workbook(MODELO_PADRAO_NOME, data_only=False)
+                else:
+                    wb_modelo = openpyxl.load_workbook(arquivo_modelo, data_only=False)
+                
                 aba_modelo_original = wb_modelo.worksheets[0]
 
                 # Cache de imagens
