@@ -183,25 +183,23 @@ def unificar_horarios_seguidos(horarios_lista):
 
 st.set_page_config(page_title="Gerador de Listas de Presença", layout="centered")
 
-# Divide o topo em duas colunas
-col_titulo, col_logo = st.columns([9, 1])
+col_titulo, col_logo = st.columns([4, 1])
 
 with col_titulo:
     st.title("Gerador de Listas de Presença")
 
 with col_logo:
-    # Exibe a logo se ela existir na pasta (tamanho reduzido)
     if os.path.exists(ARQUIVO_LOGO):
-        st.write("")
-        st.write("")
-        st.image(ARQUIVO_LOGO, width=100) 
+        st.write("") 
+        st.write("") 
+        st.image(ARQUIVO_LOGO, width=100)
 
 tem_modelo_local = os.path.exists(MODELO_PADRAO_NOME)
 tem_tuss_local = os.path.exists(ARQUIVO_TUSS_PADRAO)
 
 tipo_plano = st.selectbox(
     "Selecione o Plano de Saúde:", 
-    options=["Unimed Brasil", "Leve Saúde (Em breve)", "Assim Saúde (Em breve)", "Despertare (Em breve)"],
+    options=["Unimed Brasil", "Bradesco Saúde (Em breve)", "SulAmérica (Em breve)", "Outro (Modelo Padrão)"],
     index=0
 )
 
@@ -232,7 +230,8 @@ if arquivo_grade:
 
         grade_horarios_temp = []
         for linha in texto_temp:
-            if re.search(r'\d{2}:\d{2}\s*às\s*\d{2}:\d{2}', linha):
+            # CORREÇÃO DA REGEX (Aceita "às", "as", "-", "–", etc.)
+            if re.search(r'\d{2}:\d{2}\s*(?:às|as|-|–|—)\s*\d{2}:\d{2}', linha, flags=re.IGNORECASE):
                 partes = [p.strip() for p in linha.split('|')]
                 if len(partes) >= 6:
                     for i in range(1, 6):
@@ -267,6 +266,7 @@ if tem_modelo_local:
 else:
     st.warning(f"⚠️ O arquivo '{MODELO_PADRAO_NOME}' não foi encontrado. Por favor, anexe o modelo manualmente.")
     arquivo_modelo = st.file_uploader("2. Modelo da Planilha Padrão (Excel - .xlsx) [OBRIGATÓRIO]", type=["xlsx"])
+
 
 # ==========================================
 # MOTOR DE GERAÇÃO (Lógica Principal)
@@ -341,7 +341,8 @@ if st.button("Gerar Lista de Presença", type="primary"):
 
                 grade_horarios = []
                 for linha in texto_completo:
-                    if re.search(r'\d{2}:\d{2}\s*às\s*\d{2}:\d{2}', linha):
+                    # CORREÇÃO DA REGEX AQUI TAMBÉM
+                    if re.search(r'\d{2}:\d{2}\s*(?:às|as|-|–|—)\s*\d{2}:\d{2}', linha, flags=re.IGNORECASE):
                         partes = [p.strip() for p in linha.split('|')]
                         if len(partes) >= 6:
                             horario = partes[0]
