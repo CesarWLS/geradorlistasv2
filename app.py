@@ -201,7 +201,7 @@ tem_tuss_local = os.path.exists(ARQUIVO_TUSS_PADRAO)
 
 tipo_plano = st.selectbox(
     "Selecione o Plano de Saúde:", 
-    options=["Unimed Brasil", "Bradesco Saúde (Em breve)", "SulAmérica (Em breve)", "Outro (Modelo Padrão)"],
+    options=["Unimed Brasil", "Leve Saúde (Em breve)", "Assim Saúde (Em breve)", "Despertare (Em breve)"],
     index=0
 )
 
