@@ -11,12 +11,28 @@ from copy import copy
 import holidays
 from PIL import Image as PILImage
 
-# Nome exato do seu arquivo de modelo que deve estar na mesma pasta
+# Nome exato dos arquivos que devem estar na mesma pasta
 MODELO_PADRAO_NOME = "MODELOLISTA.xlsx"
+ARQUIVO_TUSS_PADRAO = "CODIGOS TUSS PADRÃO.txt"
+ARQUIVO_LOGO = "Logo.png"
 
 # ==========================================
-# FUNÇÕES DE LÓGICA E FORMATAÇÃO
+# FUNÇÕES AUXILIARES E DE FORMATAÇÃO
 # ==========================================
+
+def carregar_tuss_padrao():
+    tuss_padrao = {}
+    if os.path.exists(ARQUIVO_TUSS_PADRAO):
+        with open(ARQUIVO_TUSS_PADRAO, 'r', encoding='utf-8') as f:
+            for linha in f:
+                if '=' in linha:
+                    chave, valor = linha.split('=', 1)
+                    tuss_padrao[chave.strip().upper()] = valor.strip()
+        
+        if "ABA" in tuss_padrao and "PSICOLOGIA ABA" not in tuss_padrao:
+            tuss_padrao["PSICOLOGIA ABA"] = tuss_padrao["ABA"]
+            
+    return tuss_padrao
 
 def limpar_especialidade(texto):
     texto_limpo = re.sub(r'\(.*?\)', '', texto).strip()
@@ -120,6 +136,7 @@ def processar_placeholders_e_limpar_x(aba, paciente, especialidade, profissional
                     for ph in ["[SENHA]"]:
                         if ph in valor.upper():
                             celula.value = re.compile(re.escape(ph), re.IGNORECASE).sub(senha, valor)
+                
                 elif r >= linha_inicio_dados and (valor.strip().lower() == 'x' or valor.strip() == '[]'):
                     celula.value = ""
 
@@ -166,12 +183,28 @@ def unificar_horarios_seguidos(horarios_lista):
 
 st.set_page_config(page_title="Gerador de Listas de Presença", layout="centered")
 
-st.title("Gerador de Listas de Presença")
+# Divide o topo em duas colunas
+col_titulo, col_logo = st.columns([9, 1])
 
-# Verifica se o modelo padrão já está na mesma pasta que o script
+with col_titulo:
+    st.title("Gerador de Listas de Presença")
+
+with col_logo:
+    # Exibe a logo se ela existir na pasta (tamanho reduzido)
+    if os.path.exists(ARQUIVO_LOGO):
+        st.write("")
+        st.write("")
+        st.image(ARQUIVO_LOGO, width=100) 
+
 tem_modelo_local = os.path.exists(MODELO_PADRAO_NOME)
+tem_tuss_local = os.path.exists(ARQUIVO_TUSS_PADRAO)
 
-# Controles de Mês, Ano e Senha
+tipo_plano = st.selectbox(
+    "Selecione o Plano de Saúde:", 
+    options=["Unimed Brasil", "Bradesco Saúde (Em breve)", "SulAmérica (Em breve)", "Outro (Modelo Padrão)"],
+    index=0
+)
+
 col1, col2 = st.columns(2)
 mes = col1.number_input("Mês da Lista", min_value=1, max_value=12, value=datetime.now().month)
 ano = col2.number_input("Ano da Lista", min_value=2020, max_value=2100, value=datetime.now().year)
@@ -179,18 +212,65 @@ ano = col2.number_input("Ano da Lista", min_value=2020, max_value=2100, value=da
 senha_digitada = st.text_input("Senha da Guia (opcional):", placeholder="Digite a senha para preencher o documento")
 
 st.divider()
-
 st.subheader("Anexe os arquivos necessários")
 arquivo_grade = st.file_uploader("1. Grade de Faturamento (Word - .docx)", type=["docx"])
 
+# ==========================================
+# PRÉ-LEITURA PARA CÓDIGOS TUSS
+# ==========================================
+especialidades_pre_encontradas = []
+codigos_tuss = {}
+
+if arquivo_grade:
+    try:
+        doc_temp = docx.Document(arquivo_grade)
+        texto_temp = []
+        for table in doc_temp.tables:
+            for row in table.rows:
+                linha_tabela = " | ".join([cell.text.strip().replace('\n', ' ') for cell in row.cells])
+                texto_temp.append(linha_tabela)
+
+        grade_horarios_temp = []
+        for linha in texto_temp:
+            if re.search(r'\d{2}:\d{2}\s*às\s*\d{2}:\d{2}', linha):
+                partes = [p.strip() for p in linha.split('|')]
+                if len(partes) >= 6:
+                    for i in range(1, 6):
+                        espec = partes[i]
+                        if espec:
+                            espec_limpa = limpar_especialidade(espec)
+                            if espec_limpa:
+                                grade_horarios_temp.append(espec_limpa)
+
+        especialidades_pre_encontradas = sorted(list(set(grade_horarios_temp)))
+        arquivo_grade.seek(0) 
+    except Exception:
+        pass
+
+if especialidades_pre_encontradas:
+    inserir_tuss = st.checkbox("Deseja inserir ou revisar os códigos TUSS?")
+    if inserir_tuss:
+        mensagem_tuss = "Digite o código TUSS correspondente."
+        if tem_tuss_local:
+            mensagem_tuss += " Deixe em branco para usar o padrão automático."
+            
+        st.write(mensagem_tuss)
+        for espec in especialidades_pre_encontradas:
+            codigos_tuss[espec] = st.text_input(f"[{espec}]", placeholder="Ex: 20104081")
+
+st.divider()
+
 arquivo_modelo = None
-# Mostra sempre o botão de upload, mas muda a mensagem dependendo se o arquivo já existe na pasta
 if tem_modelo_local:
-    st.success(f"✅ O modelo padrão da clínica já está carregado.")
-    arquivo_modelo = st.file_uploader("2. Modelo Alternativo (Opcional - anexe apenas se quiser usar um modelo diferente)", type=["xlsx"])
+    st.success(f"✅ O modelo padrão da clínica já está carregado para o plano {tipo_plano}.")
+    arquivo_modelo = st.file_uploader("2. Modelo Alternativo (Opcional - anexe apenas se quiser sobrescrever o padrão)", type=["xlsx"])
 else:
     st.warning(f"⚠️ O arquivo '{MODELO_PADRAO_NOME}' não foi encontrado. Por favor, anexe o modelo manualmente.")
     arquivo_modelo = st.file_uploader("2. Modelo da Planilha Padrão (Excel - .xlsx) [OBRIGATÓRIO]", type=["xlsx"])
+
+# ==========================================
+# MOTOR DE GERAÇÃO (Lógica Principal)
+# ==========================================
 
 if st.button("Gerar Lista de Presença", type="primary"):
     if not arquivo_grade:
@@ -202,7 +282,8 @@ if st.button("Gerar Lista de Presença", type="primary"):
             try:
                 feriados_br = holidays.Brazil(years=ano)
                 
-                # A mágica acontece aqui: prioriza o arquivo anexado. Se não houver, usa o local.
+                tuss_padrao_dit = carregar_tuss_padrao()
+                
                 if arquivo_modelo is not None:
                     wb_modelo = openpyxl.load_workbook(arquivo_modelo, data_only=False)
                 else:
@@ -210,7 +291,6 @@ if st.button("Gerar Lista de Presença", type="primary"):
                 
                 aba_modelo_original = wb_modelo.worksheets[0]
 
-                # Cache de imagens
                 imagens_cache = []
                 if hasattr(aba_modelo_original, '_images') and aba_modelo_original._images:
                     for img in aba_modelo_original._images:
@@ -218,7 +298,6 @@ if st.button("Gerar Lista de Presença", type="primary"):
                             imagens_cache.append(img._data())
                         except: pass
 
-                # Localizar início dos dados
                 linha_inicio_dados = 9
                 for r in range(1, aba_modelo_original.max_row + 1):
                     cel_valor = aba_modelo_original.cell(row=r, column=1).value
@@ -226,7 +305,6 @@ if st.button("Gerar Lista de Presença", type="primary"):
                         linha_inicio_dados = r
                         break
 
-                # Ler o Word
                 doc = docx.Document(arquivo_grade)
                 texto_completo = []
                 for p in doc.paragraphs:
@@ -236,13 +314,11 @@ if st.button("Gerar Lista de Presença", type="primary"):
                         linha_tabela = " | ".join([cell.text.strip().replace('\n', ' ') for cell in row.cells])
                         texto_completo.append(linha_tabela)
 
-                # Processar Paciente
                 paciente_cru = texto_completo[0]
                 paciente_cru = re.sub(r'^paciente\s*:\s*', '', paciente_cru, flags=re.IGNORECASE)
                 paciente_cru = re.sub(r'^paciente\s+', '', paciente_cru, flags=re.IGNORECASE)
                 paciente = limpar_nome_arquivo(paciente_cru)
 
-                # Processar Cartão/Carteirinha
                 cartao = ""
                 padrao_cartao = re.compile(r'\b(cart(?:ã|a)o|carteirinha|cod(?:igo)?\s*do?\s*cart(?:ã|a)o|n(?:u|o|º)?\s*da?\s*carteirinha)\s*[:-]?\s*(.*)', re.IGNORECASE)
                 for linha in texto_completo:
@@ -251,7 +327,6 @@ if st.button("Gerar Lista de Presença", type="primary"):
                         cartao = match_cartao.group(2).strip()
                         break
 
-                # Processar Profissionais
                 profissionais = {}
                 capturando_prof = False
                 for linha in texto_completo:
@@ -264,7 +339,6 @@ if st.button("Gerar Lista de Presença", type="primary"):
                             espec_chave = limpar_especialidade(partes[0].strip())
                             profissionais[espec_chave.upper()] = partes[1].strip()
 
-                # Processar Horários
                 grade_horarios = []
                 for linha in texto_completo:
                     if re.search(r'\d{2}:\d{2}\s*às\s*\d{2}:\d{2}', linha):
@@ -288,7 +362,6 @@ if st.button("Gerar Lista de Presença", type="primary"):
                     st.error("Nenhuma especialidade compatível encontrada na grade.")
                     st.stop()
 
-                # Criar nova planilha
                 wb_novo = openpyxl.Workbook()
                 default_sheet = wb_novo.active
 
@@ -307,6 +380,9 @@ if st.button("Gerar Lista de Presença", type="primary"):
                     for dia_sem in dias_dessa_espec:
                         dias_dessa_espec[dia_sem] = unificar_horarios_seguidos(dias_dessa_espec[dia_sem])
 
+                    codigo_digitado = codigos_tuss.get(espec, "").strip()
+                    codigo_final = codigo_digitado if codigo_digitado else tuss_padrao_dit.get(espec.upper(), "")
+
                     datas_mes = []
                     data_atual = date(ano, mes, 1)
                     while data_atual.month == mes:
@@ -319,7 +395,7 @@ if st.button("Gerar Lista de Presença", type="primary"):
                                 datas_mes.append({
                                     "Data": data_atual.strftime("%d/%m/%Y"),
                                     "Horário": horario_sessao,
-                                    "Código TUSS": "",
+                                    "Código TUSS": codigo_final,
                                     "Profissional": nome_profissional_completo,
                                     "Assinatura": ""
                                 })
@@ -366,7 +442,6 @@ if st.button("Gerar Lista de Presença", type="primary"):
                     wb_novo.remove(default_sheet)
                 wb_novo.active = 0
 
-                # Salvar em memória para o download
                 buffer = io.BytesIO()
                 wb_novo.save(buffer)
                 buffer.seek(0)
