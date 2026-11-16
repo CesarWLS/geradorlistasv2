@@ -60,7 +60,7 @@ def limpar_nome_arquivo(nome):
 def remover_conselho(nome_profissional):
     if not nome_profissional:
         return ""
-    padrao_conselho = r'\b(CRP|CREFITO|CRM|COREN|COFFITO|OAB|CREF|CRFa|CRFª|CRN|CRT|CRBM|CBO)\b.*'
+    padrao_conselho = r'\b(CRP|CREFITO|CRM|COREN|COFFITO|OAB|CREF|CRFa|CRFª|CRN|CRT|CRBM|CBO|ABMT)\b.*'
     nome_limpo = re.sub(padrao_conselho, '', nome_profissional, flags=re.IGNORECASE)
     return re.sub(r'[-\s,/|:_]+$', '', nome_limpo).strip()
 
